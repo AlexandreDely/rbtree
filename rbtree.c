@@ -12,6 +12,64 @@ static inline struct rb_node *rb_sibling(struct rb_node *n)
 	return (n == n->p->l) ? n->p->r : n->p->l;
 }
 
+struct rb_node *rb_predecessor(struct rb_node *n)
+{
+	struct rb_node *prev = NULL, *orig = NULL, *p = NULL;
+	if(!n)
+		return NULL;
+	if(!n->l) {
+		orig = n;
+		while(NULL != (p = orig->p)) {
+			if(p->l == orig) {
+				orig = p;
+			} else if(p->r == orig) {
+				return p;
+			}
+		}
+		/*
+		 * Here we reached the root of the tree
+		 * without finding a predecessor for
+		 * the target node ...
+		 */
+		return NULL;
+	} else {
+		p = n->l;
+		while(NULL != (orig = p->r)) {
+			p = orig;
+		}
+		return p;
+	}
+}
+
+struct rb_node *rb_successor(struct rb_node *n)
+{
+	struct rb_node *prev = NULL, *orig = NULL, *p = NULL;
+	if(!n)
+		return NULL;
+	if(!n->r) {
+		orig = n;
+		while(NULL != (p = orig->p)) {
+			if(p->r == orig) {
+				orig = p;
+			} else if(p->l == orig) {
+				return p;
+			}
+		}
+		/*
+		 * Here we reached the root of the tree
+		 * without finding a predecessor for
+		 * the target node ...
+		 */
+		return NULL;
+	} else {
+		p = n->r;
+		while(NULL != (orig = p->l)) {
+			p = orig;
+		}
+		return p;
+	}
+}
+
 int rb_insert_raw(struct rb_root *root, struct rb_node *n)
 {
 	int order = 0;
@@ -141,11 +199,12 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
 
 void rb_erase(struct rb_node *node, struct rb_root *root)
 {
-	struct rb_node *c = NULL
+	struct rb_node *c = NULL, *neighbor = NULL;
 	if(!node || !root)
 		return;
 	if(RB_COLOR_RED == node->clr) {
 		if(node->l && node->r) {
+			neighbor = rb_predecessor(node);
 		}
 	}
 }
