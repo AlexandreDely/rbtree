@@ -49,6 +49,10 @@ static inline void rb_link_node(struct rb_node *n, struct rb_node *parent, struc
 struct rb_node *rb_predecessor(struct rb_node *n);
 struct rb_node *rb_successor(struct rb_node *n);
 
+int rb_insert_raw(struct rb_root *root, struct rb_node *n);
+int rb_insert(struct rb_root *tree, ...);
+int rb_insert_v(struct rb_root *tree, va_list args);
+
 void rb_erase(struct rb_node *node, struct rb_root *root);
 void rb_balance(struct rb_node *node, struct rb_root *root);
 
