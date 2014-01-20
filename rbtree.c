@@ -1,9 +1,10 @@
 
 #include "rbtree.h"
+#include <stdarg.h>
 #include <string.h>
 
-static void rotate_left(struct rb_node *n);
-static void rotate_right(struct rb_node *n);
+static void rotate_right(struct rb_node *n, struct rb_root *root);
+static void rotate_left(struct rb_node *n, struct rb_root *root);
 static void rb_swap_nodes(struct rb_node *n1, struct rb_node *n2);
 static inline struct rb_node *rb_sibling(struct rb_node *n);
 
@@ -29,9 +30,9 @@ static void rb_swap_nodes(struct rb_node *n1, struct rb_node *n2)
 	if(!n1 || !n2)
 		return;
 
-	memcpy(&tmp, sizeof (struct rb_node), n1);
-	memcpy(n1, sizeof (struct rb_node), n2);
-	memcpy(n2, sizeof (struct rb_node), &tmp);
+	memcpy(&tmp, n1, sizeof (struct rb_node));
+	memcpy(n1, n2, sizeof (struct rb_node));
+	memcpy(n2, &tmp, sizeof (struct rb_node));
 }
 
 /**
@@ -50,11 +51,13 @@ struct rb_node *rb_predecessor(struct rb_node *n)
 		return NULL;
 	if(!n->l) {
 		orig = n;
-		while(NULL != (p = orig->p)) {
+		while((p = orig->p)) {
 			if(p->l == orig) {
 				orig = p;
 			} else if(p->r == orig) {
 				return p;
+			} else {
+				printf("Houston, we've got a problem\n");
 			}
 		}
 		/*
@@ -112,6 +115,31 @@ struct rb_node *rb_successor(struct rb_node *n)
 	}
 }
 
+struct rb_node *rb_leftmost(struct rb_root *root)
+{
+	struct rb_node *n = NULL;
+	if(!root)
+		return NULL;
+	n = root->root;
+	while(n && n->l) {
+		n = n->l;
+	}
+	return n;
+}
+
+struct rb_node *rb_rightmost(struct rb_root *root)
+{
+	struct rb_node *n = NULL;
+	if(!root)
+		return NULL;
+	n = root->root;
+	while(n && n->r) {
+		n = n->r;
+	}
+	return n;
+}
+
+
 /**
  * rb_insert_raw - Insert one node in a RB-tree
  * @root: The tree in which the node will be
@@ -130,9 +158,9 @@ int rb_insert_raw(struct rb_root *root, struct rb_node *n)
 		parent = *p;
 		order = root->tmpl->order(n, (*p));
 		if(0 < order) {
-			*p = (*p)->l;
+			p = &((*p)->l);
 		} else if(0 > order) {
-			*p = (*p)->r;
+			p = &((*p)->r);
 		} else {
 			return -ENODATA;
 		}
@@ -152,10 +180,11 @@ int rb_insert_raw(struct rb_root *root, struct rb_node *n)
 int rb_insert_v(struct rb_root *tree, va_list args)
 {
 	int order = 0, ret = 0;
-	struct rb_node *node = NULL, *parent = NULL;
-	struct rb_node **p = &tree->root;
+	struct rb_node *node = NULL;
 	node = tree->tmpl->alloc_node(args);
-	if(!tree || !tree->tmpl || (ret = tree->tmpl->ins_preprocess(tree, node))) {
+	if(!tree || !tree->tmpl ||
+		(tree->tmpl->ins_preprocess &&
+				(ret = tree->tmpl->ins_preprocess(tree, node)))) {
 		return (ret) ? ret : -EINVAL;
 	}
 	ret = rb_insert_raw(tree, node);
@@ -185,10 +214,10 @@ int rb_insert(struct rb_root *tree, ...)
 	return ret;
 }
 
-static void rotate_left(struct rb_node *n)
+static void rotate_left(struct rb_node *n, struct rb_root *root)
 {
 	struct rb_node *r = NULL, *p = NULL, *tmp = NULL;
-	if(!n || !n->r)
+	if(!n || !n->r || !root)
 		return;
 
 	p = n->p;
@@ -200,16 +229,18 @@ static void rotate_left(struct rb_node *n)
 	n->r = tmp;
 
 	/* Updating the parent nodes */
-	r->p = n;
+	r->p = p;
 	n->p = r;
 	if(tmp)
 		tmp->p = n;
+	if(!p)
+		root->root = r;
 }
 
-static void rotate_right(struct rb_node *n)
+static void rotate_right(struct rb_node *n, struct rb_root *root)
 {
 	struct rb_node *l = NULL, *tmp = NULL, *p = NULL;
-	if(!n || !n->l)
+	if(!n || !n->l || !root)
 		return;
 	/* Storing the needed nodes */
 	p = n->p;
@@ -225,6 +256,8 @@ static void rotate_right(struct rb_node *n)
 	n->p = l;
 	if(tmp)
 		tmp->p = n;
+	if(!p)
+		root->root = l;
 }
 
 /**
@@ -254,7 +287,7 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
 		p = node->p;
 		g = p->p;
 		u = (p != g->l) ? g->l : g->r;
-		if(RB_COLOR_RED == u->clr) {
+		if(u && RB_COLOR_RED == u->clr) {
 			p->clr = RB_COLOR_BLACK;
 			u->clr = RB_COLOR_BLACK;
 			g->clr = RB_COLOR_RED;
@@ -264,12 +297,12 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
 		}
 	}
 	if((p->r == node) && (g->l == p)) {
-		rotate_left(p);
+		rotate_left(p, root);
 		p = node;
 		g = node->p;
 		node = node->l;
 	} else if((p->l == node) && (g->r == p)) {
-		rotate_right(p);
+		rotate_right(p, root);
 		p = node;
 		g = node->p;
 		node = node->r;
@@ -277,9 +310,9 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
 	p->clr = RB_COLOR_BLACK;
 	g->clr = RB_COLOR_RED;
 	if(node == p->l) {
-		rotate_right(g);
+		rotate_right(g, root);
 	} else {
-		rotate_left(g);
+		rotate_left(g, root);
 	}
 	return 0;
 }
@@ -335,10 +368,10 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 			s->clr = RB_COLOR_BLACK;
 			if(p->l == node) {
 				p->l = NULL;
-				rotate_left(p);
+				rotate_left(p, root);
 			} else {
 				p->r = NULL;
-				rotate_right(p);
+				rotate_right(p, root);
 			}
 		}
 		if(RB_COLOR_BLACK == s->clr && RB_COLOR_BLACK == p->clr &&
@@ -368,24 +401,24 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 			(s->l && RB_COLOR_RED == s->l->clr)) {
 			s->clr = RB_COLOR_RED;
 			s->l->clr = RB_COLOR_BLACK;
-			rotate_right(s);
+			rotate_right(s, root);
 		} else if((p->r == node) &&
 			(!s->l || RB_COLOR_BLACK == s->l->clr) &&
 			(s->r && RB_COLOR_RED == s->r->clr)) {
 			s->clr = RB_COLOR_RED;
 			s->r->clr = RB_COLOR_BLACK;
-			rotate_left(s);
+			rotate_left(s, root);
 		}
 		s->clr = p->clr;
 		p->clr = RB_COLOR_BLACK;
 		if(node == p->l) {
 			if(s->r)
 				s->r->clr = RB_COLOR_BLACK;
-			rotate_left(p);
+			rotate_left(p, root);
 		} else {
 			if(s->l)
 				s->l->clr = RB_COLOR_BLACK;
-			rotate_right(p);
+			rotate_right(p, root);
 		}
 	}
 }
