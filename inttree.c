@@ -66,7 +66,7 @@ static int inttree_order(struct rb_node *n1, struct rb_node *n2)
 
 	a1 = rb_entry(n1, struct int_rb_node, node);
 	a2 = rb_entry(n2, struct int_rb_node, node);
-	return (a1->k >= a2->k) - (a2->k >= a1->k);
+	return (a1->k <= a2->k) - (a2->k <= a1->k);
 }
 
 void inttree_dump(struct rb_root *root)

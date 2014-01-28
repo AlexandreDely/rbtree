@@ -98,6 +98,8 @@ struct rb_node *rb_successor(struct rb_node *n)
 				orig = p;
 			} else if(p->l == orig) {
 				return p;
+			} else {
+				printf("Problem here\n");
 			}
 		}
 		/*
@@ -217,13 +219,14 @@ int rb_insert(struct rb_root *tree, ...)
 static void rotate_left(struct rb_node *n, struct rb_root *root)
 {
 	struct rb_node *r = NULL, *p = NULL, *tmp = NULL;
+	int left = 0;
 	if(!n || !n->r || !root)
 		return;
 
 	p = n->p;
 	r = n->r;
 	tmp = r->l;
-
+	left = (p && (n == p->l));
 	/* Perform the "rotation" */
 	r->l = n;
 	n->r = tmp;
@@ -235,18 +238,26 @@ static void rotate_left(struct rb_node *n, struct rb_root *root)
 		tmp->p = n;
 	if(!p)
 		root->root = r;
+	else {
+		if(left) {
+			p->l = r;
+		} else {
+			p->r = r;
+		}
+	}
 }
 
 static void rotate_right(struct rb_node *n, struct rb_root *root)
 {
 	struct rb_node *l = NULL, *tmp = NULL, *p = NULL;
+	int left;
 	if(!n || !n->l || !root)
 		return;
 	/* Storing the needed nodes */
 	p = n->p;
 	l = n->l;
 	tmp = l->r;
-
+	left = (p && (n == p->l));
 	/* Perform the "rotation" */
 	l->r = n;
 	n->l = tmp;
@@ -258,6 +269,13 @@ static void rotate_right(struct rb_node *n, struct rb_root *root)
 		tmp->p = n;
 	if(!p)
 		root->root = l;
+	else {
+		if(left) {
+			p->l = l;
+		} else {
+			p->r = l;
+		}
+	}
 }
 
 /**
@@ -296,16 +314,17 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
 			uprising = 0;
 		}
 	}
+	/* Probleme ici ? */
 	if((p->r == node) && (g->l == p)) {
 		rotate_left(p, root);
-		p = node;
-		g = node->p;
 		node = node->l;
+		p = node->p;
+		g = p->p;
 	} else if((p->l == node) && (g->r == p)) {
 		rotate_right(p, root);
-		p = node;
-		g = node->p;
 		node = node->r;
+		p = node->p;
+		g = p->p;
 	}
 	p->clr = RB_COLOR_BLACK;
 	g->clr = RB_COLOR_RED;
