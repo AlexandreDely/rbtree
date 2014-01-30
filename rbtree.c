@@ -5,7 +5,8 @@
 
 static void rotate_right(struct rb_node *n, struct rb_root *root);
 static void rotate_left(struct rb_node *n, struct rb_root *root);
-static void rb_swap_nodes(struct rb_node *n1, struct rb_node *n2);
+static void rb_swap_nodes(struct rb_root *root,
+		struct rb_node *n1, struct rb_node *n2);
 static inline struct rb_node *rb_sibling(struct rb_node *n);
 
 static inline struct rb_node *rb_sibling(struct rb_node *n)
@@ -24,15 +25,42 @@ static inline struct rb_node *rb_sibling(struct rb_node *n)
  * This functions is ONLY used for the deletion procedure,
  * where the order will be set back up.
  */
-static void rb_swap_nodes(struct rb_node *n1, struct rb_node *n2)
+static void rb_swap_nodes(struct rb_root *root,
+		struct rb_node *n1, struct rb_node *n2)
 {
 	struct rb_node tmp;
+	struct rb_node *p1 = NULL, *p2 = NULL;
 	if(!n1 || !n2)
 		return;
-
+	p1 = n1->p;
+	p2 = n2->p;
+	if(p1) {
+		if(n1 == p1->l)
+			p1->l = n2;
+		else
+			p1->r = n2;
+	} else {
+		root->root = n2;
+	}
+	if(p2) {
+		if(n2 == p2->l)
+			p2->l = n1;
+		else
+			p2->r = n1;
+	} else {
+		root->root = n1;
+	}
 	memcpy(&tmp, n1, sizeof (struct rb_node));
 	memcpy(n1, n2, sizeof (struct rb_node));
 	memcpy(n2, &tmp, sizeof (struct rb_node));
+	if(n1->r)
+		n1->r->p = n1;
+	if(n1->l)
+		n1->l->p = n1;
+	if(n2->r)
+		n2->r->p = n2;
+	if(n2->l)
+		n2->l->p = n2;
 }
 
 /**
@@ -341,28 +369,41 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
  * @node: The node to erase
  * @root: The tree to which the node belongs
  */
-void rb_erase(struct rb_node *node, struct rb_root *root)
+void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 {
-	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL, *s = NULL;
+	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL, *s = NULL, *tgt = node;
 	int uprising = 1;
 	if(!node || !root || !root->tmpl || !root->tmpl->free_node)
 		return;
 	if(node->l && node->r) {
 		neighbor = rb_predecessor(node);
-		rb_swap_nodes(node, neighbor);
+		rb_swap_nodes(root, node, neighbor);
 	}
+	p = node->p;
 	c = (NULL == node->l) ? node->r : node->l;
 	if(RB_COLOR_RED == node->clr) {
 		if(c)
 			c->p = node->p;
+		if(p && (p->l == node)) {
+			p->l = c;
+		} else if(p && (p->r == node)) {
+			p->r = c;
+		} else if(!p){
+			root->root = c;
+		}
 		root->tmpl->free_node(node);
 		return;
 	} else if((RB_COLOR_BLACK == node->clr) && c && (RB_COLOR_RED == c->clr)) {
 		/*
-		 * If node is black, and has one child, it must be red ...
+		 * If node is black, and has one child, it must be red ... ???
 		 */
-		c->p = node->p;
+		c->p = p;
 		c->clr = RB_COLOR_BLACK;
+		if(p && (p->l == node)) {
+			p->l = c;
+		} else if(p && (p->r == node)) {
+			p->r = c;
+		}
 		root->tmpl->free_node(node);
 		return;
 	}
@@ -370,9 +411,7 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 	 * Tricky case :
 	 * The node is black and is childless (leaf-children).
 	 */
-	p = node->p;
 	s = rb_sibling(node);
-	root->tmpl->free_node(node);
 	while(uprising) {
 		if(!p) {
 			/*
@@ -380,6 +419,7 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 			 * We can delete it right away
 			 */
 			root->root = NULL;
+			root->tmpl->free_node(tgt);
 			return;
 		}
 		if(RB_COLOR_RED == s->clr) {
@@ -412,6 +452,7 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 			(!s->r || RB_COLOR_BLACK == s->r->clr)) {
 		p->clr = RB_COLOR_BLACK;
 		s->clr = RB_COLOR_RED;
+		root->tmpl->free_node(tgt);
 		return;
 	}
 	if(RB_COLOR_BLACK == s->clr) {
@@ -440,4 +481,5 @@ void rb_erase(struct rb_node *node, struct rb_root *root)
 			rotate_right(p, root);
 		}
 	}
+	root->tmpl->free_node(tgt);
 }
