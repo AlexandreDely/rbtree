@@ -365,13 +365,30 @@ int rb_balance(struct rb_node *node, struct rb_root *root)
 }
 
 /**
+ * rb_erase_free - Erase a node from a RB-tree and free memory
+ * @node: The node to erase
+ * @root: The tree to which the node belongs
+ *
+ * This function will remove @node from @root using @rb_erase_raw.
+ * It will then free the memory occupied by @node, via the template function
+ * (see @rb_tree_tmpl).
+ */
+void rb_erase_free(struct rb_node *node, struct rb_root *root)
+{
+	if(!node || !root || !root->tmpl || !root->tmpl->free_node)
+		return;
+	rb_erase_raw(node, root);
+	root->tmpl->free_node(node);
+}
+
+/**
  * rb_erase - Erase a node from a RB-tree
  * @node: The node to erase
  * @root: The tree to which the node belongs
  */
 void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 {
-	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL, *s = NULL, *tgt = node;
+	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL, *s = NULL;
 	int uprising = 1;
 	if(!node || !root || !root->tmpl || !root->tmpl->free_node)
 		return;
@@ -391,7 +408,6 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 		} else if(!p){
 			root->root = c;
 		}
-		root->tmpl->free_node(node);
 		return;
 	} else if((RB_COLOR_BLACK == node->clr) && c && (RB_COLOR_RED == c->clr)) {
 		/*
@@ -403,8 +419,9 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 			p->l = c;
 		} else if(p && (p->r == node)) {
 			p->r = c;
+		} else if(!p) {
+			root->root = c;
 		}
-		root->tmpl->free_node(node);
 		return;
 	}
 	/*
@@ -419,7 +436,6 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 			 * We can delete it right away
 			 */
 			root->root = NULL;
-			root->tmpl->free_node(tgt);
 			return;
 		}
 		if(RB_COLOR_RED == s->clr) {
@@ -452,7 +468,6 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 			(!s->r || RB_COLOR_BLACK == s->r->clr)) {
 		p->clr = RB_COLOR_BLACK;
 		s->clr = RB_COLOR_RED;
-		root->tmpl->free_node(tgt);
 		return;
 	}
 	if(RB_COLOR_BLACK == s->clr) {
@@ -481,5 +496,47 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 			rotate_right(p, root);
 		}
 	}
-	root->tmpl->free_node(tgt);
+}
+
+/**
+ * rb_clear - Clear a RB-tree
+ * @root: The tree to clear
+ *
+ * This function will simply delete any content
+ * in the tree @root, using @rb_erase_free.
+ */
+void rb_clear(struct rb_root *root)
+{
+	if(!root)
+		return;
+	while(NULL != root->root) {
+		rb_erase_free(root->root, root);
+	}
+}
+
+/**
+ * rb_merge - Merge two RB trees
+ * @dst: The hosting tree
+ * @src: The tree to merge with @dst
+ *
+ * This function moves the nodes in @src to @dst.
+ * Finally, @src will be an empty tree whereas @dst will host
+ * the merge result.
+ */
+int rb_merge(struct rb_root *dst, struct rb_root *src)
+{
+	int err = 0;
+	struct rb_node *node = NULL;
+	if(!dst || !src || (dst->tmpl != src->tmpl)) {
+		return -EINVAL;
+	}
+	while(NULL != src->root) {
+		node = src->root;
+		rb_erase_raw(node, src);
+		err = rb_insert_raw(dst, node);
+		if(err) {
+			break;
+		}
+	}
+	return err;
 }
