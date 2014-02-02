@@ -187,9 +187,9 @@ int rb_insert_raw(struct rb_root *root, struct rb_node *n)
 	while(*p) {
 		parent = *p;
 		order = root->tmpl->order(n, (*p));
-		if(0 < order) {
+		if(0 > order) {
 			p = &((*p)->l);
-		} else if(0 > order) {
+		} else if(0 < order) {
 			p = &((*p)->r);
 		} else {
 			return -ENODATA;
@@ -209,7 +209,7 @@ int rb_insert_raw(struct rb_root *root, struct rb_node *n)
  */
 int rb_insert_v(struct rb_root *tree, va_list args)
 {
-	int order = 0, ret = 0;
+	int ret = 0;
 	struct rb_node *node = NULL;
 	node = tree->tmpl->alloc_node(args);
 	if(!tree || !tree->tmpl ||
@@ -539,4 +539,52 @@ int rb_merge(struct rb_root *dst, struct rb_root *src)
 		}
 	}
 	return err;
+}
+
+/**
+ * rb_find - Find a node using its charateristic parameters
+ * @root: The tree in which to look up
+ * @...: The parameters that identify the targeted node
+ *
+ * This function uses @rb_find_v to perform the work.
+ * It allocates a temporary node to allow node comparison
+ * using the order function. The tmp node is freed before
+ * the function returns.
+ *
+ * As a consequence, the characteristic arguments are the ones
+ * needed to allocate the node.
+ */
+struct rb_node *rb_find(struct rb_root *root, ...)
+{
+	va_list args;
+	struct rb_node *n = NULL;
+	va_start(args, root);
+	n = rb_find_v(root, args);
+	va_end(args);
+	return n;
+}
+
+struct rb_node *rb_find_v(struct rb_root *root, va_list args)
+{
+	int order = 0;
+	struct rb_node *tgt = NULL, *n = NULL;
+	if(!root || !root->tmpl)
+		return NULL;
+	if(!(tgt = root->tmpl->alloc_node(args))) {
+		return NULL;
+	}
+	n = root->root;
+	while(n) {
+		order = root->tmpl->order(tgt, n);
+		if(0 > order) {
+			n = n->l;
+		} else if(0 < order) {
+			n = n->r;
+		} else {
+			root->tmpl->free_node(tgt);
+			return n;
+		}
+	}
+	root->tmpl->free_node(tgt);
+	return NULL;
 }

@@ -61,6 +61,9 @@ void rb_erase_free(struct rb_node *node, struct rb_root *root);
 int rb_balance(struct rb_node *node, struct rb_root *root);
 
 struct rb_node *rb_leftmost(struct rb_root *root);
-struct rb_node *rb_rightmost(struct rb_root *root);;
+struct rb_node *rb_rightmost(struct rb_root *root);
+
+struct rb_node *rb_find(struct rb_root *root, ...);
+struct rb_node *rb_find_v(struct rb_root *root, va_list args);
 
 #endif // _RBTREE_H_
