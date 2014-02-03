@@ -75,7 +75,7 @@ static void rb_swap_nodes(struct rb_root *root,
  */
 struct rb_node *rb_predecessor(struct rb_node *n)
 {
-	struct rb_node *prev = NULL, *orig = NULL, *p = NULL;
+	struct rb_node *orig = NULL, *p = NULL;
 	if(!n)
 		return NULL;
 	if(!n->l) {
@@ -117,7 +117,7 @@ struct rb_node *rb_predecessor(struct rb_node *n)
  */
 struct rb_node *rb_successor(struct rb_node *n)
 {
-	struct rb_node *prev = NULL, *orig = NULL, *p = NULL;
+	struct rb_node *orig = NULL, *p = NULL;
 	if(!n)
 		return NULL;
 	if(!n->r) {

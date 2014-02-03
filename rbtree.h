@@ -56,6 +56,8 @@ int rb_insert_v(struct rb_root *tree, va_list args);
 
 int rb_merge(struct rb_root *dst, struct rb_root *src);
 
+void rb_clear(struct rb_root *root);
+
 void rb_erase_raw(struct rb_node *node, struct rb_root *root);
 void rb_erase_free(struct rb_node *node, struct rb_root *root);
 int rb_balance(struct rb_node *node, struct rb_root *root);
