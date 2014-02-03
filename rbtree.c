@@ -8,6 +8,7 @@ static void rotate_left(struct rb_node *n, struct rb_root *root);
 static void rb_swap_nodes(struct rb_root *root,
 		struct rb_node *n1, struct rb_node *n2);
 static inline struct rb_node *rb_sibling(struct rb_node *n);
+static void rb_delete_one_child(struct rb_node *node, struct rb_root *root);
 
 static inline struct rb_node *rb_sibling(struct rb_node *n)
 {
@@ -381,6 +382,28 @@ void rb_erase_free(struct rb_node *node, struct rb_root *root)
 	root->tmpl->free_node(node);
 }
 
+
+static void rb_delete_one_child(struct rb_node *node, struct rb_root *root)
+{
+	struct rb_node *p = NULL, *c = NULL;
+	if(!node || !root)
+		return;
+	p = node->p;
+	c = (NULL == node->l) ? node->r : node->l;
+	if(p) {
+		if(node == p->l)
+			p->l = c;
+		if(node == p->r)
+			p->r = c;
+		if(c)
+			c->p = p;
+	} else {
+		root->root = c;
+		if(c)
+			c->p = NULL;
+	}
+}
+
 /**
  * rb_erase - Erase a node from a RB-tree
  * @node: The node to erase
@@ -389,6 +412,7 @@ void rb_erase_free(struct rb_node *node, struct rb_root *root)
 void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 {
 	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL, *s = NULL;
+	struct rb_node *tgt = NULL;
 	int uprising = 1;
 	if(!node || !root || !root->tmpl || !root->tmpl->free_node)
 		return;
@@ -399,15 +423,7 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 	p = node->p;
 	c = (NULL == node->l) ? node->r : node->l;
 	if(RB_COLOR_RED == node->clr) {
-		if(c)
-			c->p = node->p;
-		if(p && (p->l == node)) {
-			p->l = c;
-		} else if(p && (p->r == node)) {
-			p->r = c;
-		} else if(!p){
-			root->root = c;
-		}
+		rb_delete_one_child(node, root);
 		return;
 	} else if((RB_COLOR_BLACK == node->clr) && c && (RB_COLOR_RED == c->clr)) {
 		/*
@@ -415,19 +431,14 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 		 */
 		c->p = p;
 		c->clr = RB_COLOR_BLACK;
-		if(p && (p->l == node)) {
-			p->l = c;
-		} else if(p && (p->r == node)) {
-			p->r = c;
-		} else if(!p) {
-			root->root = c;
-		}
+		rb_delete_one_child(node, root);
 		return;
 	}
 	/*
 	 * Tricky case :
 	 * The node is black and is childless (leaf-children).
 	 */
+	tgt = node;
 	s = rb_sibling(node);
 	while(uprising) {
 		if(!p) {
@@ -442,10 +453,8 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 			p->clr = RB_COLOR_RED;
 			s->clr = RB_COLOR_BLACK;
 			if(p->l == node) {
-				p->l = NULL;
 				rotate_left(p, root);
 			} else {
-				p->r = NULL;
 				rotate_right(p, root);
 			}
 		}
@@ -468,6 +477,7 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 			(!s->r || RB_COLOR_BLACK == s->r->clr)) {
 		p->clr = RB_COLOR_BLACK;
 		s->clr = RB_COLOR_RED;
+		rb_delete_one_child(tgt, root);
 		return;
 	}
 	if(RB_COLOR_BLACK == s->clr) {
@@ -495,6 +505,7 @@ void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 				s->l->clr = RB_COLOR_BLACK;
 			rotate_right(p, root);
 		}
+		rb_delete_one_child(tgt, root);
 	}
 }
 
