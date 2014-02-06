@@ -409,28 +409,29 @@ static void rb_delete_fixup(struct rb_root *root, struct rb_node *n,
 	while((n != root->root) && (!n || n->clr == RB_COLOR_BLACK)) {
 		if(isleft) {
 			s = p->r;
-			if(RB_COLOR_RED == s->clr) {
+			if(s && RB_COLOR_RED == s->clr) {
 				s->clr = RB_COLOR_BLACK;
 				p->clr = RB_COLOR_RED;
 				rotate_left(p, root);
 				s = p->r;
 			}
-			if((!s->l || s->l->clr == RB_COLOR_BLACK) &&
+			if(s && (!s->l || s->l->clr == RB_COLOR_BLACK) &&
 				(!s->r || s->r->clr == RB_COLOR_BLACK)) {
 				s->clr = RB_COLOR_RED;
 				n = p;
 				p = p->p;
 				isleft = (p && n == p->l);
 			} else {
-				if(!s->r || s->r->clr == RB_COLOR_BLACK) {
+				if(s && (!s->r || s->r->clr == RB_COLOR_BLACK)) {
 					s->l->clr = RB_COLOR_BLACK;
 					s->clr = RB_COLOR_RED;
 					rotate_right(s, root);
 					s = p->r;
 				}
-				s->clr = p->clr;
+				if(s)
+					s->clr = p->clr;
 				p->clr = RB_COLOR_BLACK;
-				if(s->r) {
+				if(s && s->r) {
 					s->r->clr = RB_COLOR_BLACK;
 				}
 				rotate_left(p, root);
@@ -438,28 +439,29 @@ static void rb_delete_fixup(struct rb_root *root, struct rb_node *n,
 			}
 		} else { // (!isleft)
 			s = p->l;
-			if(RB_COLOR_RED == s->clr) {
+			if(s && RB_COLOR_RED == s->clr) {
 				s->clr = RB_COLOR_BLACK;
 				p->clr = RB_COLOR_RED;
 				rotate_right(p, root);
 				s = p->l;
 			}
-			if((!s->l || s->l->clr == RB_COLOR_BLACK) &&
+			if(s && (!s->l || s->l->clr == RB_COLOR_BLACK) &&
 				(!s->r || s->r->clr == RB_COLOR_BLACK)) {
 				s->clr = RB_COLOR_RED;
 				n = p;
 				p = p->p;
 				isleft = (p && n == p->l);
 			} else {
-				if(!s->l || s->l->clr == RB_COLOR_BLACK) {
+				if(s && (!s->l || s->l->clr == RB_COLOR_BLACK)) {
 					s->r->clr = RB_COLOR_BLACK;
 					s->clr = RB_COLOR_RED;
 					rotate_left(s, root);
 					s = p->l;
 				}
-				s->clr = p->clr;
+				if(s)
+					s->clr = p->clr;
 				p->clr = RB_COLOR_BLACK;
-				if(s->l) {
+				if(s && s->l) {
 					s->l->clr = RB_COLOR_BLACK;
 				}
 				rotate_right(p, root);
