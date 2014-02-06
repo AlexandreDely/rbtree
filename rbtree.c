@@ -7,16 +7,9 @@ static void rotate_right(struct rb_node *n, struct rb_root *root);
 static void rotate_left(struct rb_node *n, struct rb_root *root);
 static void rb_swap_nodes(struct rb_root *root,
 		struct rb_node *n1, struct rb_node *n2);
-static inline struct rb_node *rb_sibling(struct rb_node *n);
-static void rb_delete_one_child(struct rb_node *node, struct rb_root *root);
-static int rb_black_count(struct rb_node *node);
-
-static inline struct rb_node *rb_sibling(struct rb_node *n)
-{
-	if(!n || !n->p)
-		return NULL;
-	return (n == n->p->l) ? n->p->r : n->p->l;
-}
+static void rb_delete_fixup(struct rb_root *root, struct rb_node *n,
+		struct rb_node *p, int isleft);
+static int rb_delete_one_child(struct rb_node *node, struct rb_root *root);
 
 /**
  * rb_swap_nodes - Swap two nodes brutally
@@ -384,18 +377,21 @@ void rb_erase_free(struct rb_node *node, struct rb_root *root)
 }
 
 
-static void rb_delete_one_child(struct rb_node *node, struct rb_root *root)
+static int rb_delete_one_child(struct rb_node *node, struct rb_root *root)
 {
 	struct rb_node *p = NULL, *c = NULL;
+	int isleft = 0;
 	if(!node || !root)
-		return;
+		return -EINVAL;
 	p = node->p;
 	c = (NULL == node->l) ? node->r : node->l;
 	if(p) {
-		if(node == p->l)
+		if(node == p->l) {
 			p->l = c;
-		if(node == p->r)
+			isleft = 1;
+		} else if(node == p->r) {
 			p->r = c;
+		}
 		if(c)
 			c->p = p;
 	} else {
@@ -403,110 +399,96 @@ static void rb_delete_one_child(struct rb_node *node, struct rb_root *root)
 		if(c)
 			c->p = NULL;
 	}
+	return isleft;
+}
+
+static void rb_delete_fixup(struct rb_root *root, struct rb_node *n,
+		struct rb_node *p, int isleft)
+{
+	struct rb_node *s = NULL;
+	while((n != root->root) && (!n || n->clr == RB_COLOR_BLACK)) {
+		if(isleft) {
+			s = p->r;
+			if(RB_COLOR_RED == s->clr) {
+				s->clr = RB_COLOR_BLACK;
+				p->clr = RB_COLOR_RED;
+				rotate_left(p, root);
+				s = p->r;
+			}
+			if((!s->l || s->l->clr == RB_COLOR_BLACK) &&
+				(!s->r || s->r->clr == RB_COLOR_BLACK)) {
+				s->clr = RB_COLOR_RED;
+				n = p;
+				p = p->p;
+				isleft = (p && n == p->l);
+			} else {
+				if(!s->r || s->r->clr == RB_COLOR_BLACK) {
+					s->l->clr = RB_COLOR_BLACK;
+					s->clr = RB_COLOR_RED;
+					rotate_right(s, root);
+					s = p->r;
+				}
+				s->clr = p->clr;
+				p->clr = RB_COLOR_BLACK;
+				if(s->r) {
+					s->r->clr = RB_COLOR_BLACK;
+				}
+				rotate_left(p, root);
+				break;
+			}
+		} else { // (!isleft)
+			s = p->l;
+			if(RB_COLOR_RED == s->clr) {
+				s->clr = RB_COLOR_BLACK;
+				p->clr = RB_COLOR_RED;
+				rotate_right(p, root);
+				s = p->l;
+			}
+			if((!s->l || s->l->clr == RB_COLOR_BLACK) &&
+				(!s->r || s->r->clr == RB_COLOR_BLACK)) {
+				s->clr = RB_COLOR_RED;
+				n = p;
+				p = p->p;
+				isleft = (p && n == p->l);
+			} else {
+				if(!s->l || s->l->clr == RB_COLOR_BLACK) {
+					s->r->clr = RB_COLOR_BLACK;
+					s->clr = RB_COLOR_RED;
+					rotate_left(s, root);
+					s = p->l;
+				}
+				s->clr = p->clr;
+				p->clr = RB_COLOR_BLACK;
+				if(s->l) {
+					s->l->clr = RB_COLOR_BLACK;
+				}
+				rotate_right(p, root);
+				break;
+			}
+		}
+	}
 }
 
 /**
- * rb_erase - Erase a node from a RB-tree
+ * rb_erase_raw - Erase a node from a RB-tree
  * @node: The node to erase
  * @root: The tree to which the node belongs
  */
 void rb_erase_raw(struct rb_node *node, struct rb_root *root)
 {
-	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL, *s = NULL;
-	struct rb_node *tgt = NULL;
-	int uprising = 1;
+	struct rb_node *c = NULL, *neighbor = NULL, *p = NULL;
+	int isleft = 0;
 	if(!node || !root || !root->tmpl || !root->tmpl->free_node)
 		return;
 	if(node->l && node->r) {
 		neighbor = rb_predecessor(node);
 		rb_swap_nodes(root, node, neighbor);
 	}
+	c = (node->l == NULL) ? node->r : node->l;
 	p = node->p;
-	c = (NULL == node->l) ? node->r : node->l;
-	if(RB_COLOR_RED == node->clr) {
-		rb_delete_one_child(node, root);
-		return;
-	} else if((RB_COLOR_BLACK == node->clr) && c && (RB_COLOR_RED == c->clr)) {
-		/*
-		 * If node is black, and has one child, it must be red ... ???
-		 */
-		c->p = p;
-		c->clr = RB_COLOR_BLACK;
-		rb_delete_one_child(node, root);
-		return;
-	}
-	/*
-	 * Tricky case :
-	 * The node is black and is childless (leaf-children).
-	 */
-	tgt = node;
-	s = rb_sibling(node);
-	while(uprising) {
-		if(!p) {
-			/*
-			 * The tree only has a root ...
-			 * We can delete it right away
-			 */
-			root->root = NULL;
-			return;
-		}
-		if(RB_COLOR_RED == s->clr) {
-			p->clr = RB_COLOR_RED;
-			s->clr = RB_COLOR_BLACK;
-			if(p->l == node) {
-				rotate_left(p, root);
-			} else {
-				rotate_right(p, root);
-			}
-		}
-		if(RB_COLOR_BLACK == s->clr && RB_COLOR_BLACK == p->clr &&
-				(!s->l || RB_COLOR_BLACK == s->l->clr) &&
-				(!s->r || RB_COLOR_BLACK == s->r->clr)) {
-			s->clr = RB_COLOR_RED;
-			node = p;
-			p = node->p;
-			s = rb_sibling(node);
-		} else {
-			uprising = 0;
-		}
-	}
-	/*
-	 * At this point, node must NOT be dereferenced
-	 */
-	if(RB_COLOR_RED == p->clr && s->clr == RB_COLOR_BLACK &&
-			(!s->l || RB_COLOR_BLACK == s->l->clr) &&
-			(!s->r || RB_COLOR_BLACK == s->r->clr)) {
-		p->clr = RB_COLOR_BLACK;
-		s->clr = RB_COLOR_RED;
-		rb_delete_one_child(tgt, root);
-		return;
-	}
-	if(RB_COLOR_BLACK == s->clr) {
-		if((p->l == node) &&
-			(!s->r || RB_COLOR_BLACK == s->r->clr) &&
-			(s->l && RB_COLOR_RED == s->l->clr)) {
-			s->clr = RB_COLOR_RED;
-			s->l->clr = RB_COLOR_BLACK;
-			rotate_right(s, root);
-		} else if((p->r == node) &&
-			(!s->l || RB_COLOR_BLACK == s->l->clr) &&
-			(s->r && RB_COLOR_RED == s->r->clr)) {
-			s->clr = RB_COLOR_RED;
-			s->r->clr = RB_COLOR_BLACK;
-			rotate_left(s, root);
-		}
-		s->clr = p->clr;
-		p->clr = RB_COLOR_BLACK;
-		if(node == p->l) {
-			if(s->r)
-				s->r->clr = RB_COLOR_BLACK;
-			rotate_left(p, root);
-		} else {
-			if(s->l)
-				s->l->clr = RB_COLOR_BLACK;
-			rotate_right(p, root);
-		}
-		rb_delete_one_child(tgt, root);
+	isleft = rb_delete_one_child(node, root);
+	if(RB_COLOR_BLACK == node->clr) {
+		rb_delete_fixup(root, c, p, isleft);
 	}
 }
 
