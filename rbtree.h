@@ -68,4 +68,6 @@ struct rb_node *rb_rightmost(struct rb_root *root);
 struct rb_node *rb_find(struct rb_root *root, ...);
 struct rb_node *rb_find_v(struct rb_root *root, va_list args);
 
+int rb_tree_is_sane(struct rb_root *tree);
+
 #endif // _RBTREE_H_

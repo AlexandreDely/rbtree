@@ -9,6 +9,7 @@ static void rb_swap_nodes(struct rb_root *root,
 		struct rb_node *n1, struct rb_node *n2);
 static inline struct rb_node *rb_sibling(struct rb_node *n);
 static void rb_delete_one_child(struct rb_node *node, struct rb_root *root);
+static int rb_black_count(struct rb_node *node);
 
 static inline struct rb_node *rb_sibling(struct rb_node *n)
 {
@@ -598,4 +599,39 @@ struct rb_node *rb_find_v(struct rb_root *root, va_list args)
 	}
 	root->tmpl->free_node(tgt);
 	return NULL;
+}
+
+static int rb_black_count(struct rb_node *node)
+{
+	int cnt = 0, tmp;
+	if(!node)
+		return 0;
+	if(node->clr == RB_COLOR_BLACK) {
+		cnt++;
+	} else {
+		if((node->l && node->l->clr == RB_COLOR_RED) ||
+			(node->r && node->r->clr == RB_COLOR_RED)) {
+			return -1;
+		}
+	}
+	if(0 > (tmp = rb_black_count(node->l))) {
+		return tmp;
+	}
+	if(tmp != rb_black_count(node->r)) {
+		return -1;
+	} else {
+		return cnt + tmp;
+	}
+}
+
+int rb_tree_is_sane(struct rb_root *tree)
+{
+	int res = 1;
+	struct rb_node *n = NULL;
+	if(!tree)
+		return 0;
+	if(!tree->root)
+		return 0;
+	res = rb_black_count(tree->root);
+	return res;
 }
